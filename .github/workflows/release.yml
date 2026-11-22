@@ -101,6 +101,17 @@ jobs:
               cp packaging/Info.plist "$app/Info.plist"
               /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION%%-*}" "$app/Info.plist"
               /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string ${VERSION}" "$app/Info.plist"
+              iconset="$RUNNER_TEMP/dirstat.iconset"
+              mkdir -p "$iconset"
+              for size in 16 32 128 256; do
+                sips -z $size $size crates/dirstat-app/assets/icon.png --out "$iconset/icon_${size}x${size}.png" > /dev/null
+                double=$((size * 2))
+                sips -z $double $double crates/dirstat-app/assets/icon.png --out "$iconset/icon_${size}x${size}@2x.png" > /dev/null
+              done
+              iconutil -c icns "$iconset" -o "$app/Resources/dirstat.icns"
+              /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string dirstat" "$app/Info.plist"
+              codesign --force --deep --sign - "dist/$name/dirstat.app"
+              codesign --verify --verbose "dist/$name/dirstat.app"
               cp README.md "dist/$name/"
               (cd dist && ditto -c -k --keepParent "$name" "$name.zip")
               ;;
