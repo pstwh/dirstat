@@ -246,10 +246,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     let outline = |painter: &egui::Painter, r: Rect, width: f32, color: Color32| {
         painter.rect_stroke(r.shrink(width / 2.0), 0, Stroke::new(width, color), StrokeKind::Inside);
     };
-    if let Some(selected) = app.selected
-        && tree_guard.get(selected).is_some()
-        && tree_guard.is_ancestor(current.root, selected)
-    {
+    let mut outlined: Vec<NodeId> = if app.marked.is_empty() {
+        app.selected.into_iter().collect()
+    } else {
+        app.marked.iter().copied().take(2000).collect()
+    };
+    outlined.retain(|&n| tree_guard.get(n).is_some() && tree_guard.is_ancestor(current.root, n));
+    let mut drawn: Vec<[u16; 4]> = Vec::with_capacity(outlined.len());
+    for selected in outlined {
         let mut node = selected;
         let mut found = None;
         while node != NONE {
@@ -262,11 +266,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             }
             node = tree_guard.node(node).parent;
         }
-        if let Some(r) = found {
-            let screen = to_screen(rect, &current, r).intersect(rect);
-            outline(&painter, screen.expand(1.0), 4.0, Color32::from_black_alpha(200));
-            outline(&painter, screen, 2.0, Color32::WHITE);
+        if let Some(r) = found
+            && !drawn.contains(&r)
+        {
+            drawn.push(r);
         }
+    }
+    for r in &drawn {
+        let screen = to_screen(rect, &current, *r).intersect(rect);
+        outline(&painter, screen.expand(1.0), 4.0, Color32::from_black_alpha(200));
+    }
+    for r in &drawn {
+        let screen = to_screen(rect, &current, *r).intersect(rect);
+        outline(&painter, screen, 2.0, Color32::WHITE);
     }
     if let Some(node) = list_hover
         && tree_guard.get(node).is_some()
@@ -384,11 +396,16 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 app.actions.push(Action::Zoom(target));
             }
         } else if response.clicked() {
-            app.actions.push(Action::Select(tile.node));
+            let modifiers = ui.input(|i| i.modifiers);
+            if !app.pick(tile.node, modifiers, &[]) {
+                app.actions.push(Action::Select(tile.node));
+            }
         }
         if response.secondary_clicked() {
             app.treemap.menu_node = Some(tile.node);
-            app.actions.push(Action::Select(tile.node));
+            if !app.is_selected(tile.node) {
+                app.actions.push(Action::Select(tile.node));
+            }
         }
         if response.middle_clicked() {
             app.actions.push(Action::Open(tile.node));

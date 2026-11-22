@@ -60,6 +60,7 @@ enum Command {
     CopyPath,
     Trash,
     ClearHighlight,
+    Close,
 }
 
 struct Row {
@@ -120,6 +121,12 @@ fn rows(app: &App) -> Vec<Row> {
         }
         rows.extend([
             command(Command::Rescan, "Rescan everything", icons::REFRESH, "F5"),
+            command(
+                Command::Close,
+                "Close the scan and pick another drive",
+                icons::HOUSE,
+                "Ctrl+W",
+            ),
             command(
                 Command::RescanSelection,
                 "Rescan the selected folder",
@@ -431,12 +438,9 @@ fn run_command(app: &mut App, command: Command) {
         Command::Errors => app.dialog = Some(Dialog::Errors),
         Command::Keys => app.dialog = Some(Dialog::Keys),
         Command::Reveal => app.actions.push(Action::Reveal(selection)),
-        Command::CopyPath => app.actions.push(Action::CopyPath(selection)),
-        Command::Trash => {
-            if let Some(node) = app.selected {
-                app.actions.push(Action::Trash(vec![node]));
-            }
-        }
+        Command::CopyPath => app.actions.push(Action::CopyPaths(app.selection())),
+        Command::Trash => app.actions.push(Action::Trash(app.selection())),
+        Command::Close => app.close(),
         Command::ClearHighlight => app.highlight_ext = None,
     }
 }

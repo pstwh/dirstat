@@ -130,7 +130,7 @@ pub fn node_list(app: &mut App, ui: &mut Ui, tree: &Tree, items: &[NodeId], salt
                 let (rect, response) = ui.allocate_exact_size(vec2(width, ROW), Sense::click());
                 let Some(node) = tree.get(id) else { continue };
                 let painter = ui.painter();
-                if app.selected == Some(id) {
+                if app.is_selected(id) {
                     painter.rect_filled(rect, 0, theme.select);
                 } else if response.hovered() {
                     painter.rect_filled(rect, 0, theme.hover.gamma_multiply(0.6));
@@ -186,7 +186,12 @@ pub fn node_list(app: &mut App, ui: &mut Ui, tree: &Tree, items: &[NodeId], salt
                 );
                 if response.double_clicked() {
                     app.actions.push(Action::Open(id));
-                } else if response.clicked() || response.secondary_clicked() {
+                } else if response.clicked() {
+                    let modifiers = ui.input(|i| i.modifiers);
+                    if !app.pick(id, modifiers, items) {
+                        app.actions.push(Action::Select(id));
+                    }
+                } else if response.secondary_clicked() && !app.is_selected(id) {
                     app.actions.push(Action::Select(id));
                 }
                 response.context_menu(|ui| actions::context_menu(app, tree, ui, id));
@@ -526,7 +531,7 @@ pub fn duplicates(app: &mut App, ui: &mut Ui) {
                     let Some(entry) = tree.get(node) else { continue };
                     let painter = ui.painter();
                     let checked = app.dupes.checked.contains(&node);
-                    if app.selected == Some(node) {
+                    if app.is_selected(node) {
                         painter.rect_filled(rect, 0, theme.select);
                     } else if response.hovered() {
                         painter.rect_filled(rect, 0, theme.hover.gamma_multiply(0.6));
@@ -571,7 +576,12 @@ pub fn duplicates(app: &mut App, ui: &mut Ui) {
                         toggles.push((node, !checked));
                     } else if response.double_clicked() {
                         app.actions.push(Action::Open(node));
-                    } else if response.clicked() || response.secondary_clicked() {
+                    } else if response.clicked() {
+                        let modifiers = ui.input(|i| i.modifiers);
+                        if !app.pick(node, modifiers, &group.nodes) {
+                            app.actions.push(Action::Select(node));
+                        }
+                    } else if response.secondary_clicked() && !app.is_selected(node) {
                         app.actions.push(Action::Select(node));
                     }
                     response.context_menu(|ui| actions::context_menu(app, &tree, ui, node));

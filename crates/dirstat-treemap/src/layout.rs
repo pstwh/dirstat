@@ -71,6 +71,7 @@ pub struct Layout {
     pub frames: Vec<Frame>,
     pub band_starts: Vec<u32>,
     pub band_tiles: Vec<u32>,
+    pub by_node: Vec<u32>,
 }
 
 struct Item {
@@ -224,6 +225,10 @@ pub fn layout(tree: &Tree, root: NodeId, options: &LayoutOptions) -> Layout {
         }
     }
     result.frames.sort_unstable_by_key(|f| f.node);
+    result.by_node = (0..result.tiles.len() as u32).collect();
+    result
+        .by_node
+        .sort_unstable_by_key(|&index| result.tiles[index as usize].node);
     result.build_bands();
     result
 }
@@ -286,8 +291,12 @@ impl Layout {
     }
 
     pub fn rect_of(&self, node: NodeId) -> Option<[u16; 4]> {
-        self.frame_of(node)
-            .or_else(|| self.tiles.iter().find(|t| t.node == node).map(|t| t.rect()))
+        self.frame_of(node).or_else(|| {
+            self.by_node
+                .binary_search_by_key(&node, |&index| self.tiles[index as usize].node)
+                .ok()
+                .map(|found| self.tiles[self.by_node[found] as usize].rect())
+        })
     }
 }
 

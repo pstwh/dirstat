@@ -1,7 +1,8 @@
+use dirstat_core::format::{human_count, human_size};
 use dirstat_core::{NodeId, Tree};
 use egui::{Align, Layout, RichText, Ui};
 
-use crate::app::{Action, App};
+use crate::app::{Action, App, outermost};
 use crate::icons;
 
 fn item(ui: &mut Ui, app: &App, icon: &str, label: &str, keys: &str) -> bool {
@@ -38,7 +39,54 @@ fn item(ui: &mut Ui, app: &App, icon: &str, label: &str, keys: &str) -> bool {
     response.clicked()
 }
 
+pub fn selection_size(app: &App, tree: &Tree) -> u64 {
+    outermost(tree, app.selection())
+        .into_iter()
+        .map(|n| tree.weight(n, app.settings.metric))
+        .sum()
+}
+
+fn many_menu(app: &mut App, tree: &Tree, ui: &mut Ui) {
+    let nodes = app.selection();
+    let title = format!(
+        "{} items, {}",
+        human_count(nodes.len() as u64),
+        human_size(selection_size(app, tree))
+    );
+    ui.with_layout(Layout::top_down(Align::Min), |ui| {
+        ui.label(RichText::new(title).font(app.theme.medium(12.0)).color(app.theme.dim));
+        ui.separator();
+        let mut chosen = None;
+        let mut clear = false;
+        if item(ui, app, icons::COPY, "Copy paths", "Ctrl+Shift+C") {
+            chosen = Some(Action::CopyPaths(nodes.clone()));
+        }
+        if item(ui, app, icons::CLOSE, "Clear the selection", "Esc") {
+            clear = true;
+        }
+        ui.separator();
+        if item(ui, app, icons::TRASH, "Move all to trash", "Del") {
+            chosen = Some(Action::Trash(nodes.clone()));
+        }
+        if item(ui, app, icons::WARNING, "Delete all permanently", "Shift+Del") {
+            chosen = Some(Action::Delete(nodes));
+        }
+        if clear {
+            app.select_none();
+            ui.close();
+        }
+        if let Some(action) = chosen {
+            app.actions.push(action);
+            ui.close();
+        }
+    });
+}
+
 pub fn context_menu(app: &mut App, tree: &Tree, ui: &mut Ui, node: NodeId) {
+    if app.selection_count() > 1 && app.is_selected(node) {
+        many_menu(app, tree, ui);
+        return;
+    }
     let (is_dir, is_root, name) = {
         let Some(entry) = tree.get(node) else {
             ui.close();
@@ -61,7 +109,7 @@ pub fn context_menu(app: &mut App, tree: &Tree, ui: &mut Ui, node: NodeId) {
             chosen = Some(Action::Reveal(node));
         }
         if item(ui, app, icons::COPY, "Copy path", "Ctrl+Shift+C") {
-            chosen = Some(Action::CopyPath(node));
+            chosen = Some(Action::CopyPaths(vec![node]));
         }
         if item(ui, app, icons::CLIPBOARD, "Copy name", "") {
             chosen = Some(Action::CopyName(node));

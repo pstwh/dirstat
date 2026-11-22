@@ -244,7 +244,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     let tree = shared.read();
     let metric = app.settings.metric;
     let row_count = app.folders.rows.len();
-    let mut clicked_row: Option<NodeId> = None;
+    let mut clicked_row: Option<(NodeId, egui::Modifiers)> = None;
     let mut toggled: Option<(NodeId, bool)> = None;
     let mut activated: Option<NodeId> = None;
     let output = scroll.show_rows(ui, ROW_HEIGHT, row_count, |ui, range| {
@@ -257,7 +257,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             };
             let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
             let painter = ui.painter();
-            let selected = app.selected == Some(row.node);
+            let selected = app.is_selected(row.node);
             if selected {
                 painter.rect_filled(rect, 0, theme.select);
             } else if response.hovered() {
@@ -368,13 +368,13 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             cell(painter, &mut cx, columns.files, files, theme.dim);
             cell(painter, &mut cx, columns.modified, human_date(node.mtime), theme.dim);
             if response.clicked() {
-                clicked_row = Some(row.node);
+                clicked_row = Some((row.node, ui.input(|i| i.modifiers)));
             }
             if response.double_clicked() {
                 activated = Some(row.node);
             }
-            if response.secondary_clicked() {
-                clicked_row = Some(row.node);
+            if response.secondary_clicked() && !app.is_selected(row.node) {
+                clicked_row = Some((row.node, egui::Modifiers::NONE));
             }
             if response.middle_clicked() {
                 app.actions.push(Action::Open(row.node));
@@ -389,8 +389,15 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     drop(tree);
     if let Some((node, open)) = toggled {
         app.actions.push(Action::Expand(node, open));
-    } else if let Some(node) = clicked_row {
-        app.selected = Some(node);
+    } else if let Some((node, modifiers)) = clicked_row {
+        let order: Vec<NodeId> = if modifiers.shift {
+            app.folders.rows.iter().map(|r| r.node).collect()
+        } else {
+            Vec::new()
+        };
+        if !app.pick(node, modifiers, &order) {
+            app.select_one(node);
+        }
     }
     if let Some(node) = activated {
         let is_dir = shared.read().get(node).is_some_and(|n| n.is_dir());

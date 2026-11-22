@@ -30,6 +30,10 @@ pub fn handle(app: &mut App, ctx: &Context) {
     if app.palette.is_some() {
         return;
     }
+    if pressed(ctx, Modifiers::COMMAND, Key::W) && app.has_tree() {
+        app.close();
+        return;
+    }
     if pressed(ctx, Modifiers::COMMAND, Key::O) {
         app.choose_folder();
     }
@@ -93,7 +97,7 @@ pub fn handle(app: &mut App, ctx: &Context) {
             app.actions.push(Action::Reveal(node));
         }
         if pressed(ctx, COMMAND_SHIFT, Key::C) {
-            app.actions.push(Action::CopyPath(node));
+            app.actions.push(Action::CopyPaths(app.selection()));
         }
         if pressed(ctx, Modifiers::COMMAND, Key::Enter) {
             app.actions.push(Action::Open(node));
@@ -116,7 +120,14 @@ pub fn handle(app: &mut App, ctx: &Context) {
         } else if app.is_scanning() {
             app.stop();
         } else {
-            app.selected = None;
+            app.select_none();
+        }
+    }
+    if pressed(ctx, Modifiers::COMMAND, Key::A) {
+        match app.section {
+            Section::Largest => app.select_all(&app.largest.items.clone()),
+            Section::Search => app.select_all(&app.search.results.clone()),
+            _ => {}
         }
     }
     if pressed(ctx, Modifiers::NONE, Key::Backspace) || pressed(ctx, Modifiers::ALT, Key::ArrowUp) {
@@ -127,10 +138,10 @@ pub fn handle(app: &mut App, ctx: &Context) {
             app.actions.push(Action::Zoom(node));
         }
         if pressed(ctx, Modifiers::SHIFT, Key::Delete) {
-            app.actions.push(Action::Delete(vec![node]));
+            app.actions.push(Action::Delete(app.selection()));
         }
         if pressed(ctx, Modifiers::NONE, Key::Delete) {
-            app.actions.push(Action::Trash(vec![node]));
+            app.actions.push(Action::Trash(app.selection()));
         }
     }
     navigate(app, ctx);
@@ -193,7 +204,7 @@ fn navigate(app: &mut App, ctx: &Context) {
     if let Some(index) = target {
         let index = index.min(app.folders.rows.len() - 1);
         let node = app.folders.rows[index].node;
-        app.selected = Some(node);
+        app.select_one(node);
         app.folders.scroll_to = Some(node);
         if app.section != Section::Folders {
             app.section = Section::Folders;

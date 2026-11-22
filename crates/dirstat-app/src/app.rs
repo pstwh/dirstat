@@ -11,7 +11,7 @@ use dirstat_core::dupes::{DupGroup, DupProgress, find_duplicates};
 use dirstat_core::format::{human_count, human_duration, human_size};
 use dirstat_core::fsops;
 use dirstat_core::{Metric, NONE, NodeId, ScanProgress, ScanState, SharedTree, Tree};
-use egui::Context;
+use egui::{Context, Modifiers};
 use parking_lot::RwLock;
 
 use crate::palette::Palette;
@@ -76,7 +76,7 @@ pub enum Action {
     Select(NodeId),
     Open(NodeId),
     Reveal(NodeId),
-    CopyPath(NodeId),
+    CopyPaths(Vec<NodeId>),
     CopyName(NodeId),
     Zoom(NodeId),
     ZoomOut,
@@ -172,6 +172,8 @@ pub struct App {
     pub source: Option<Source>,
     pub zoom: NodeId,
     pub selected: Option<NodeId>,
+    pub marked: HashSet<NodeId>,
+    pub anchor: Option<NodeId>,
     pub hovered: Option<NodeId>,
     pub last_hovered: Option<NodeId>,
     pub highlight_ext: Option<u16>,
@@ -208,6 +210,8 @@ impl App {
             source: None,
             zoom: 0,
             selected: None,
+            marked: HashSet::new(),
+            anchor: None,
             hovered: None,
             last_hovered: None,
             highlight_ext: None,
@@ -293,7 +297,7 @@ impl App {
 
     fn reset_view(&mut self) {
         self.zoom = 0;
-        self.selected = None;
+        self.select_none();
         self.hovered = None;
         self.highlight_ext = None;
         self.folders = FolderState::default();
@@ -305,6 +309,20 @@ impl App {
         }
         self.dupes = DupesState::default();
         self.treemap.reset();
+    }
+
+    pub fn close(&mut self) {
+        if let Some(job) = &self.job {
+            job.cancel();
+        }
+        self.job = None;
+        self.tree = None;
+        self.source = None;
+        self.pending_restore = None;
+        self.deferred.clear();
+        self.dialog = None;
+        self.reset_view();
+        self.refresh_disks();
     }
 
     pub fn scan(&mut self, path: PathBuf) {
@@ -393,8 +411,107 @@ impl App {
         }
     }
 
-    pub fn select(&mut self, node: NodeId, reveal: bool) {
+    pub fn select_none(&mut self) {
+        self.selected = None;
+        self.marked.clear();
+        self.anchor = None;
+    }
+
+    pub fn select_one(&mut self, node: NodeId) {
         self.selected = Some(node);
+        self.marked.clear();
+        self.anchor = Some(node);
+    }
+
+    pub fn is_selected(&self, node: NodeId) -> bool {
+        if self.marked.is_empty() {
+            self.selected == Some(node)
+        } else {
+            self.marked.contains(&node)
+        }
+    }
+
+    pub fn selection(&self) -> Vec<NodeId> {
+        if self.marked.is_empty() {
+            return self.selected.into_iter().collect();
+        }
+        let mut nodes: Vec<NodeId> = self.marked.iter().copied().collect();
+        nodes.sort_unstable();
+        nodes
+    }
+
+    pub fn selection_count(&self) -> usize {
+        if self.marked.is_empty() {
+            usize::from(self.selected.is_some())
+        } else {
+            self.marked.len()
+        }
+    }
+
+    pub fn pick(&mut self, node: NodeId, modifiers: Modifiers, order: &[NodeId]) -> bool {
+        if modifiers.shift {
+            let anchor = self.anchor.or(self.selected).unwrap_or(node);
+            let from = order.iter().position(|&n| n == anchor);
+            let to = order.iter().position(|&n| n == node);
+            if let (Some(from), Some(to)) = (from, to) {
+                if !modifiers.command {
+                    self.marked.clear();
+                } else if self.marked.is_empty()
+                    && let Some(selected) = self.selected
+                {
+                    self.marked.insert(selected);
+                }
+                self.marked.extend(&order[from.min(to)..=from.max(to)]);
+                self.selected = Some(node);
+                self.anchor = Some(anchor);
+                self.settle_marks();
+                return true;
+            }
+        }
+        if !modifiers.command {
+            return false;
+        }
+        if self.marked.is_empty()
+            && let Some(selected) = self.selected
+        {
+            self.marked.insert(selected);
+        }
+        if self.marked.remove(&node) {
+            if self.selected == Some(node) {
+                self.selected = self.marked.iter().next().copied();
+            }
+        } else {
+            self.marked.insert(node);
+            self.selected = Some(node);
+        }
+        self.anchor = Some(node);
+        self.settle_marks();
+        true
+    }
+
+    pub fn select_all(&mut self, nodes: &[NodeId]) {
+        if nodes.is_empty() {
+            return;
+        }
+        self.marked = nodes.iter().copied().collect();
+        self.selected = nodes.first().copied();
+        self.anchor = self.selected;
+        self.settle_marks();
+    }
+
+    fn settle_marks(&mut self) {
+        match self.marked.len() {
+            0 => self.selected = None,
+            1 => {
+                self.selected = self.marked.iter().next().copied();
+                self.marked.clear();
+            }
+            _ => {}
+        }
+    }
+
+    pub fn select(&mut self, node: NodeId, reveal: bool) {
+        self.select_one(node);
         if let Some(tree) = self.shared() {
             let tree = tree.read();
             if tree.get(node).is_none() {
@@ -424,8 +541,8 @@ impl App {
         if parent != NONE {
             let previous = self.zoom;
             self.zoom = parent;
-            if self.selected.is_none() {
-                self.selected = Some(previous);
+            if self.selection_count() == 0 {
+                self.select_one(previous);
             }
         }
     }
@@ -445,14 +562,7 @@ impl App {
         }
         let Some(tree) = self.shared() else { return };
         let tree = tree.read();
-        let mut unique: Vec<NodeId> = nodes
-            .into_iter()
-            .filter(|&n| n != tree.root && tree.get(n).is_some())
-            .collect();
-        unique.sort_unstable();
-        unique.dedup();
-        let snapshot = unique.clone();
-        unique.retain(|&n| !snapshot.iter().any(|&other| other != n && tree.is_ancestor(other, n)));
+        let unique = outermost(&tree, nodes);
         if unique.is_empty() {
             return;
         }
@@ -711,6 +821,13 @@ impl App {
         if self.selected.is_some_and(|s| tree.get(s).is_none()) {
             self.selected = None;
         }
+        if !self.marked.is_empty() {
+            self.marked.retain(|&n| tree.get(n).is_some());
+            if self.selected.is_none() {
+                self.selected = self.marked.iter().next().copied();
+            }
+            self.settle_marks();
+        }
         if self.hovered.is_some_and(|s| tree.get(s).is_none()) {
             self.hovered = None;
         }
@@ -868,10 +985,26 @@ impl App {
                     self.toast(format!("Could not show the file: {error}"), Tone::Bad);
                 }
             }
-            Action::CopyPath(node) => {
-                if let Some(path) = self.path_of(node) {
-                    ctx.copy_text(path.display().to_string());
-                    self.toast("Path copied", Tone::Good);
+            Action::CopyPaths(nodes) => {
+                let paths: Vec<String> = match self.shared() {
+                    Some(tree) => {
+                        let tree = tree.read();
+                        nodes
+                            .iter()
+                            .filter(|&&n| tree.get(n).is_some())
+                            .map(|&n| tree.path(n).display().to_string())
+                            .collect()
+                    }
+                    None => Vec::new(),
+                };
+                if !paths.is_empty() {
+                    ctx.copy_text(paths.join("\n"));
+                    let message = if paths.len() == 1 {
+                        "Path copied".to_string()
+                    } else {
+                        format!("{} paths copied", human_count(paths.len() as u64))
+                    };
+                    self.toast(message, Tone::Good);
                 }
             }
             Action::CopyName(node) => {
@@ -932,6 +1065,29 @@ impl App {
             human_size(root.weight(self.settings.metric))
         ))
     }
+}
+
+pub fn outermost(tree: &Tree, nodes: impl IntoIterator<Item = NodeId>) -> Vec<NodeId> {
+    let set: HashSet<NodeId> = nodes
+        .into_iter()
+        .filter(|&n| n != tree.root && tree.get(n).is_some())
+        .collect();
+    let mut kept: Vec<NodeId> = set
+        .iter()
+        .copied()
+        .filter(|&n| {
+            let mut current = tree.node(n).parent;
+            while current != NONE {
+                if set.contains(&current) {
+                    return false;
+                }
+                current = tree.node(current).parent;
+            }
+            true
+        })
+        .collect();
+    kept.sort_unstable();
+    kept
 }
 
 pub fn clean_path(path: PathBuf) -> PathBuf {

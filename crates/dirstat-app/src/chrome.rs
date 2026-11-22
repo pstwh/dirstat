@@ -27,7 +27,12 @@ pub fn top_bar(app: &mut App, ui: &mut Ui) {
                     .color(theme.fg),
             );
         } else {
-            breadcrumbs(app, ui, strip.width() - 470.0);
+            if widgets::icon_button(ui, &theme, icons::HOUSE, "Pick another drive or folder (Ctrl+W)").clicked() {
+                app.close();
+                return;
+            }
+            ui.add_space(2.0);
+            breadcrumbs(app, ui, strip.width() - 500.0);
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add_space(8.0);
@@ -226,7 +231,8 @@ pub fn status_bar(app: &mut App, ui: &mut Ui) {
         } else if let Some(summary) = app.status_summary() {
             ui.label(RichText::new(summary).size(11.5).color(theme.dim));
         }
-        let focus = app.last_hovered.or(app.selected);
+        let many = app.selection_count() > 1 && app.last_hovered.is_none();
+        let focus = if many { None } else { app.last_hovered.or(app.selected) };
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
             ui.add_space(2.0);
@@ -257,6 +263,16 @@ pub fn status_bar(app: &mut App, ui: &mut Ui) {
                         .color(theme.faint),
                 );
                 ui.add_space(8.0);
+            }
+            if many && let Some(tree) = app.shared() {
+                let tree = tree.read();
+                let size = human_size(crate::actions::selection_size(app, &tree));
+                ui.label(RichText::new(size).font(theme.mono(11.0)).color(theme.fg));
+                ui.label(
+                    RichText::new(format!("{} selected", human_count(app.selection_count() as u64)))
+                        .size(11.5)
+                        .color(theme.dim),
+                );
             }
             if let Some(node) = focus
                 && let Some(tree) = app.shared()
@@ -600,6 +616,7 @@ pub fn dialogs(app: &mut App, ctx: &Context) {
 pub const KEYS_LEFT: &[(&str, &str)] = &[
     ("Ctrl+K", "Commands and quick find"),
     ("Ctrl+O", "Scan a folder"),
+    ("Ctrl+W", "Back to the drives"),
     ("F5", "Rescan everything"),
     ("Shift+F5", "Rescan the selection"),
     ("Esc", "Stop the scan"),
@@ -617,6 +634,9 @@ pub const KEYS_RIGHT: &[(&str, &str)] = &[
     ("Left / Right", "Collapse or expand"),
     ("Ctrl+Enter", "Open"),
     ("Ctrl+Shift+R", "Show in file manager"),
+    ("Ctrl+Click", "Add to the selection"),
+    ("Shift+Click", "Select a range"),
+    ("Ctrl+A", "Select all in Largest or Search"),
     ("Ctrl+Shift+C", "Copy the path"),
     ("Delete", "Move to the trash"),
     ("Shift+Delete", "Delete permanently"),
