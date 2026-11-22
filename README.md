@@ -4,13 +4,21 @@ See what takes up space on your disk, then clean it up. A fast WinDirStat for Li
 
 ![dirstat](docs/screenshot.png)
 
-## Download
+## Install
 
-Get the latest build from [Releases](../../releases):
+Linux (x86_64) and macOS (Apple Silicon):
 
-- **Linux**: `dirstat-*-x86_64-linux.tar.gz`
-- **Windows**: `dirstat-*-x86_64-windows.zip`
-- **macOS (Apple Silicon)**: `dirstat-*-aarch64-macos.zip`. The app is not notarized, so after unzipping run `xattr -dr com.apple.quarantine dirstat.app` once
+```bash
+curl -fsSL https://raw.githubusercontent.com/pstwh/dirstat/main/install.sh | sh
+```
+
+Windows (x64), in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/pstwh/dirstat/main/install.ps1 | iex
+```
+
+Run it again to update. Builds are also on the [Releases](../../releases) page.
 
 ## Use
 

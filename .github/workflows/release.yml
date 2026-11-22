@@ -149,3 +149,25 @@ jobs:
           else
             gh release create "$TAG" dist/* "${flags[@]}" --repo "$GITHUB_REPOSITORY"
           fi
+
+  install:
+    needs: [version, publish]
+    if: needs.version.outputs.prerelease == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the latest release
+        if: runner.os != 'Windows'
+        run: |
+          sh install.sh
+          "$HOME/.local/bin/dirstat" --version
+      - name: Install the latest release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./install.ps1
+          & "$env:LOCALAPPDATA\Programs\dirstat\dirstat.exe" --version | Out-Host
