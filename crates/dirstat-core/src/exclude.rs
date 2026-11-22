@@ -79,9 +79,15 @@ mod tests {
 
     #[test]
     fn absolute_patterns_match_full_paths() {
-        let excludes = Excludes::parse(&["/home/x/.cache".into(), ".git".into()]);
-        assert!(excludes.matches(Path::new("/home/x"), b".cache"));
-        assert!(excludes.matches(Path::new("/anywhere"), b".git"));
-        assert!(!excludes.matches(Path::new("/home/y"), b".cache"));
+        let (home, other) = if cfg!(windows) {
+            ("C:\\home\\x", "C:\\home\\y")
+        } else {
+            ("/home/x", "/home/y")
+        };
+        let cache = Path::new(home).join(".cache").display().to_string();
+        let excludes = Excludes::parse(&[cache, ".git".into()]);
+        assert!(excludes.matches(Path::new(home), b".cache"));
+        assert!(excludes.matches(Path::new(other), b".git"));
+        assert!(!excludes.matches(Path::new(other), b".cache"));
     }
 }
