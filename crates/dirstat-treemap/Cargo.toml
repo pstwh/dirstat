@@ -1,0 +1,8 @@
+[package]
+name = "dirstat-treemap"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dirstat-core.workspace = true
+rayon.workspace = true

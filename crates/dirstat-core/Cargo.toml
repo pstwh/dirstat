@@ -1,0 +1,24 @@
+[package]
+name = "dirstat-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+rayon.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+rustc-hash.workspace = true
+memchr.workspace = true
+blake3.workspace = true
+sysinfo.workspace = true
+trash.workspace = true
+open.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+jiff.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1.1", features = ["fs"] }
+
+[dev-dependencies]
+tempfile.workspace = true

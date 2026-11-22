@@ -1,0 +1,24 @@
+[package]
+name = "dirstat-app"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "dirstat"
+path = "src/main.rs"
+
+[dependencies]
+dirstat-core.workspace = true
+dirstat-treemap.workspace = true
+eframe.workspace = true
+egui.workspace = true
+image.workspace = true
+rfd.workspace = true
+rayon.workspace = true
+crossbeam-channel.workspace = true
+parking_lot.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }

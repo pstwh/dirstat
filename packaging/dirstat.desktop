@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=dirstat
+Comment=See what takes up space on your disks
+Exec=dirstat %f
+Icon=dirstat
+Terminal=false
+Categories=System;Utility;Filesystem;
+StartupWMClass=dirstat
