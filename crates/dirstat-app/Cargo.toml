@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 dirstat-core.workspace = true
 dirstat-treemap.workspace = true
+dirstat-mcp.workspace = true
 eframe.workspace = true
 egui.workspace = true
 image.workspace = true

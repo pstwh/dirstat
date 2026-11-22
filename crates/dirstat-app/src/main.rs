@@ -201,6 +201,9 @@ fn main() -> eframe::Result {
         println!("dirstat {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
+    if first == Some("mcp") {
+        std::process::exit(cli::mcp(&args[2..]));
+    }
     if first == Some("scan") {
         cli::attach_console();
         std::process::exit(cli::run(&args[2..]));

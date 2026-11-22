@@ -10,6 +10,7 @@ use dirstat_core::disks::{self, Disk};
 use dirstat_core::dupes::{DupGroup, DupProgress, find_duplicates};
 use dirstat_core::format::{human_count, human_duration, human_size};
 use dirstat_core::fsops;
+pub use dirstat_core::paths::clean_path;
 use dirstat_core::{Metric, NONE, NodeId, ScanProgress, ScanState, SharedTree, Tree};
 use egui::{Context, Modifiers};
 use parking_lot::RwLock;
@@ -1088,14 +1089,4 @@ pub fn outermost(tree: &Tree, nodes: impl IntoIterator<Item = NodeId>) -> Vec<No
         .collect();
     kept.sort_unstable();
     kept
-}
-
-pub fn clean_path(path: PathBuf) -> PathBuf {
-    let text = path.to_string_lossy();
-    if let Some(stripped) = text.strip_prefix(r"\\?\")
-        && !stripped.starts_with("UNC\\")
-    {
-        return PathBuf::from(stripped);
-    }
-    path
 }

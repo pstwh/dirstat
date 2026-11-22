@@ -1,0 +1,12 @@
+[package]
+name = "dirstat-mcp"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+dirstat-core.workspace = true
+parking_lot.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -10,6 +10,7 @@ authors = ["Paulo Alves <pauloalvsjr@gmail.com>"]
 [workspace.dependencies]
 dirstat-core = { path = "crates/dirstat-core" }
 dirstat-treemap = { path = "crates/dirstat-treemap" }
+dirstat-mcp = { path = "crates/dirstat-mcp" }
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "clipboard", "default_fonts", "glow", "links", "system_fonts", "wayland", "x11"] }
 egui = "0.37"
 image = { version = "0.25", default-features = false, features = ["png"] }

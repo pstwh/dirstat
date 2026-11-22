@@ -38,3 +38,13 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     std::fs::write(&temporary, bytes)?;
     std::fs::rename(&temporary, path)
 }
+
+pub fn clean_path(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(stripped) = text.strip_prefix(r"\\?\")
+        && !stripped.starts_with("UNC\\")
+    {
+        return PathBuf::from(stripped);
+    }
+    path
+}

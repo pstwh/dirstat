@@ -29,6 +29,16 @@ dirstat ~/Downloads        # open and scan a folder
 dirstat scan / --top 20    # print the biggest items without a window
 ```
 
+## Use with Claude
+
+dirstat has an MCP server, so Claude can scan your disks and tell you what uses space and what is safe to clean up. It only reads, it never deletes anything.
+
+```bash
+dirstat mcp install claude-code      # or claude-desktop, cursor, vscode, codex, gemini, windsurf
+```
+
+Then ask something like "what is taking space on my disk and what can I clean up?".
+
 ## Build
 
 ```bash

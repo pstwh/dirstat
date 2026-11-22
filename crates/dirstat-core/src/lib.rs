@@ -1,3 +1,4 @@
+pub mod cleanup;
 pub mod disks;
 pub mod dupes;
 pub mod exclude;

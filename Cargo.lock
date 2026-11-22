@@ -765,6 +765,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "dirstat-core",
+ "dirstat-mcp",
  "dirstat-treemap",
  "eframe",
  "egui",
@@ -795,6 +796,16 @@ dependencies = [
  "sysinfo",
  "tempfile",
  "trash",
+]
+
+[[package]]
+name = "dirstat-mcp"
+version = "0.1.0"
+dependencies = [
+ "dirstat-core",
+ "parking_lot",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

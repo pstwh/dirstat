@@ -112,11 +112,22 @@ fn regroup(mut items: Vec<Candidate>) -> Vec<Vec<Candidate>> {
 }
 
 pub fn find_duplicates(tree: &RwLock<Tree>, min_size: u64, threads: usize, progress: &DupProgress) -> Vec<DupGroup> {
+    let root = tree.read().root;
+    find_duplicates_within(tree, root, min_size, threads, progress)
+}
+
+pub fn find_duplicates_within(
+    tree: &RwLock<Tree>,
+    within: NodeId,
+    min_size: u64,
+    threads: usize,
+    progress: &DupProgress,
+) -> Vec<DupGroup> {
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(threads.max(1))
         .thread_name(|i| format!("dirstat-hash-{i}"))
         .build();
-    let run = || find_in_pool(tree, min_size.max(1), progress);
+    let run = || find_in_pool(tree, within, min_size.max(1), progress);
     let groups = match pool {
         Ok(pool) => pool.install(run),
         Err(_) => run(),
@@ -125,7 +136,7 @@ pub fn find_duplicates(tree: &RwLock<Tree>, min_size: u64, threads: usize, progr
     groups
 }
 
-fn find_in_pool(tree: &RwLock<Tree>, min_size: u64, progress: &DupProgress) -> Vec<DupGroup> {
+fn find_in_pool(tree: &RwLock<Tree>, within: NodeId, min_size: u64, progress: &DupProgress) -> Vec<DupGroup> {
     progress.stage.store(DupProgress::COLLECTING, Ordering::Relaxed);
     let candidates: Vec<Candidate> = {
         let tree = tree.read();
@@ -139,7 +150,11 @@ fn find_in_pool(tree: &RwLock<Tree>, min_size: u64, progress: &DupProgress) -> V
             .nodes
             .par_iter()
             .enumerate()
-            .filter(|(_, n)| n.flags.0 & skip == 0 && n.size >= min_size)
+            .filter(|(id, n)| {
+                n.flags.0 & skip == 0
+                    && n.size >= min_size
+                    && (within == tree.root || tree.is_ancestor(within, *id as NodeId))
+            })
             .map(|(id, n)| (n.size, id as NodeId))
             .collect();
         sized.par_sort_unstable();

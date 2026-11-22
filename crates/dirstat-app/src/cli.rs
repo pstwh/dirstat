@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use dirstat_core::format::{human_count, human_duration, human_size};
 use dirstat_core::scan::{ScanOptions, scan_blocking};
 use dirstat_core::{Metric, NodeId, Tree};
+use dirstat_mcp::{Client, ClientStatus};
 
 pub const HELP: &str = "dirstat                          open the app
 dirstat PATH                     open the app and scan PATH
@@ -17,6 +18,11 @@ dirstat scan PATH [options]      scan in the terminal and print the biggest item
   -x, --cross                    cross into other file systems
   --threads N                    scanner threads (default auto)
   --exclude PATTERN              skip names or absolute paths (repeatable)
+dirstat mcp                      run the MCP server on stdio for Claude and other AI assistants
+dirstat mcp install CLIENT       register the MCP server: claude-code, claude-desktop, cursor,
+                                 vscode, codex, gemini or windsurf
+dirstat mcp uninstall CLIENT     remove it again
+dirstat mcp status               show where it is registered
 DIRSTAT_DATA_DIR                 use another settings folder";
 
 pub struct ScanArgs {
@@ -118,6 +124,77 @@ fn print_level(
         )?;
     }
     Ok(())
+}
+
+pub fn mcp(args: &[String]) -> i32 {
+    match args.first().map(String::as_str) {
+        None => {
+            let settings = crate::settings::Settings::load();
+            let options = dirstat_mcp::Options {
+                excludes: settings.excludes,
+                cross_filesystems: settings.cross_filesystems,
+                dedup_hardlinks: settings.dedup_hardlinks,
+                threads: settings.threads,
+            };
+            match dirstat_mcp::serve(options) {
+                Ok(()) => 0,
+                Err(error) => {
+                    eprintln!("dirstat mcp: {error}");
+                    1
+                }
+            }
+        }
+        Some(command @ ("install" | "uninstall" | "status")) => {
+            attach_console();
+            mcp_setup(command, &args[1..])
+        }
+        Some(other) => {
+            attach_console();
+            eprintln!("dirstat mcp: unknown command {other}, see dirstat --help");
+            2
+        }
+    }
+}
+
+fn mcp_setup(command: &str, rest: &[String]) -> i32 {
+    let exe = match std::env::current_exe().and_then(std::fs::canonicalize) {
+        Ok(exe) => crate::app::clean_path(exe),
+        Err(error) => {
+            eprintln!("dirstat mcp: could not find this program: {error}");
+            return 1;
+        }
+    };
+    if command == "status" {
+        for client in Client::ALL {
+            let state = match dirstat_mcp::status(client, &exe) {
+                ClientStatus::Installed => "installed",
+                ClientStatus::Available => "not installed",
+                ClientStatus::NotFound => "not found on this computer",
+            };
+            println!("{:<16} {:<15} {state}", client.slug(), client.label());
+        }
+        return 0;
+    }
+    let names: Vec<&str> = Client::ALL.iter().map(|client| client.slug()).collect();
+    let Some(client) = rest.first().and_then(|name| Client::parse(name)) else {
+        eprintln!("dirstat mcp {command}: name a client: {}", names.join(", "));
+        return 2;
+    };
+    let result = if command == "install" {
+        dirstat_mcp::install(client, &exe)
+    } else {
+        dirstat_mcp::uninstall(client)
+    };
+    match result {
+        Ok(message) => {
+            println!("{message}");
+            0
+        }
+        Err(error) => {
+            eprintln!("dirstat mcp {command}: {error}");
+            1
+        }
+    }
 }
 
 pub fn run(args: &[String]) -> i32 {
